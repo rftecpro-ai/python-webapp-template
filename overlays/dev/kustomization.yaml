@@ -5,4 +5,4 @@ resources:
   - ../../base
 images:
   - name: ffribeiro/python-webapp-template
-    newTag: "8e8d48a6d33d78bff1fe0407d60289d02535fb0e"
+    newTag: "18a8910b805e99a3e0a5a5b4fb4e32b19fb4f63b"
