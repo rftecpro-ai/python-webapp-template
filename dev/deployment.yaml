@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-webapp-template
+spec:
+  selector:
+    matchLabels:
+      app: python-webapp-template
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: python-webapp-template
+    spec:
+      containers:
+        - name: python-webapp-template
+          image: ffribeiro/python-webapp-template:1.0
+          ports:
+            - containerPort: 8000
