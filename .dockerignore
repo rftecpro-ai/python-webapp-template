@@ -7,3 +7,6 @@ venv/
 tests/
 requirements-dev.txt
 README.md
+base/
+overlays/
+applications/

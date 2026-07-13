@@ -1,7 +1,44 @@
 # python-webapp-template
 
 A minimal Flask "Hello World" web app, containerized with Docker and built/pushed
-to Docker Hub via a GitHub Actions CI pipeline.
+to Docker Hub via a GitHub Actions CI pipeline. Deployed to Kubernetes via
+Kustomize and ArgoCD GitOps. This is the Kustomize-based sibling of
+[python-webapp-helm-template](https://github.com/rftecpro-ai/python-webapp-helm-template),
+which uses a Helm chart instead.
+
+## Repository structure
+
+```
+.
+├── app.py                        # Flask app (single "/" route, returns JSON)
+├── conftest.py                   # empty; makes pytest resolve `app` as an importable module
+├── tests/
+│   └── test_app.py               # pytest suite for app.py
+├── requirements.txt               # runtime dependencies (flask, gunicorn)
+├── requirements-dev.txt           # requirements.txt + pytest, for local dev/CI
+├── Dockerfile                     # multi-arch image build, served via gunicorn
+├── VERSION                        # human-edited release version (see CI/CD below)
+├── .github/workflows/ci.yml       # test → build-and-push → update-manifest pipeline
+├── base/                          # shared Kustomize base (Deployment + Service)
+│   ├── kustomization.yaml          # lists base resources: deployment.yaml, service.yaml
+│   ├── deployment.yaml             # Deployment (2 replicas, container port 8000)
+│   └── service.yaml                # ClusterIP Service, port 80 → container port 8000
+├── overlays/
+│   └── dev/
+│       └── kustomization.yaml     # dev overlay: sets namespace + deployed image tag
+├── applications/
+│   └── argocd-app.yaml            # ArgoCD Application CRD, registers overlays/dev with ArgoCD
+├── .dockerignore                  # excludes tests/, base/, overlays/, applications/, docs, etc. from build context
+├── .gitignore                     # excludes __pycache__/, .venv/, .pytest_cache/, etc.
+└── README.md
+```
+
+Not shown above: `__pycache__/` and `.pytest_cache/` are ephemeral, gitignored
+directories that Python/pytest regenerate locally — they're not part of the
+repo. `.git/` is version-control internals.
+
+See [CI/CD](#cicd) and [Deployment (ArgoCD / Kubernetes)](#deployment-argocd--kubernetes)
+below for how these pieces fit together.
 
 ## Local development
 
@@ -94,6 +131,7 @@ another overlay, not duplicating the whole manifest set:
 
 | Path | Purpose |
 |---|---|
+| [`base/kustomization.yaml`](base/kustomization.yaml) | Lists the base resources (`deployment.yaml`, `service.yaml`) |
 | [`base/deployment.yaml`](base/deployment.yaml) | Deployment (2 replicas, container port 8000) |
 | [`base/service.yaml`](base/service.yaml) | ClusterIP Service, port 80 → container port 8000 |
 | [`overlays/dev/kustomization.yaml`](overlays/dev/kustomization.yaml) | Sets the `dev` namespace and the deployed image tag |
