@@ -9,7 +9,7 @@ spec:
   source:
     repoURL: https://github.com/rftecpro-ai/python-webapp-template.git
     targetRevision: HEAD
-    path: dev
+    path: overlays/dev
   destination:
     server: https://kubernetes.default.svc
     namespace: python-webapp-template
