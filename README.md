@@ -26,9 +26,14 @@ docker run -p 8000:8000 ffribeiro/python-webapp-template:local
 `.github/workflows/ci.yml` runs on every push/PR to `main`:
 
 1. **test** — installs dependencies and runs `pytest`.
-2. **build-and-push** — on push to `main` only (after tests pass), builds the
-   Docker image and pushes it to Docker Hub as
-   `ffribeiro/python-webapp-template:latest` and `:<commit-sha>`.
+2. **build-and-push** — on push to `main` only (after tests pass), builds a
+   multi-arch (`linux/amd64`, `linux/arm64`) image and pushes it to Docker Hub
+   as `ffribeiro/python-webapp-template:<VERSION>` and `:<commit-sha>`.
+
+To cut a new release, bump the version in the [`VERSION`](VERSION) file and
+merge to `main` — that value becomes the image tag. Without a bump, every
+merge to `main` re-pushes the same version tag (pointing at the latest
+commit), so treat updating `VERSION` as the release step.
 
 ### Required repository secrets
 
