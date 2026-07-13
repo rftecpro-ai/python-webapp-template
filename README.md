@@ -43,6 +43,19 @@ same version tag (pointing at the latest commit), so treat updating `VERSION`
 as the release step. This is independent of the `:<commit-sha>` tag that
 `update-manifest` deploys, which always tracks the latest commit on `main`.
 
+`VERSION` is the **only** file you need to edit for a release. It's tempting
+to think the image tags in [`base/deployment.yaml`](base/deployment.yaml) and
+[`overlays/dev/kustomization.yaml`](overlays/dev/kustomization.yaml) also need
+a manual bump, but they don't:
+
+- `base/deployment.yaml`'s image tag is never deployed as-is — Kustomize's
+  `images` transformer in the overlay always overwrites it. It only needs to
+  keep the correct image *name*, not a correct tag.
+- `overlays/dev/kustomization.yaml`'s `newTag` is overwritten automatically by
+  `update-manifest` on every merge to `main`, using the commit SHA — not the
+  `VERSION` value. Any manual edit there gets clobbered on the next merge
+  anyway.
+
 ### Required repository secrets
 
 The push step needs these secrets set in the GitHub repo
