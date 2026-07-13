@@ -75,13 +75,13 @@ jobs:
 
       - name: Set deployed image tag to this commit's SHA
         run: |
-          yq -i '.spec.template.spec.containers[0].image = "${{ env.IMAGE_NAME }}:${{ github.sha }}"' dev/deployment.yaml
+          yq -i '.images[0].newTag = "${{ github.sha }}"' overlays/dev/kustomization.yaml
 
       - name: Commit and push manifest update
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add dev/deployment.yaml
+          git add overlays/dev/kustomization.yaml
           if git diff --cached --quiet; then
             echo "Deployment manifest already up to date, nothing to commit."
           else
