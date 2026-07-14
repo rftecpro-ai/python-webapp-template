@@ -73,25 +73,43 @@ docker run -p 8000:8000 ffribeiro/python-webapp-template:local
    deployment below — every push to `main` results in that exact commit's
    image running in the cluster.
 
-To cut a new Docker Hub release version, bump the version in the
-[`VERSION`](VERSION) file and merge to `main` — that value becomes the
-`:<VERSION>` image tag. Without a bump, every merge to `main` re-pushes the
-same version tag (pointing at the latest commit), so treat updating `VERSION`
-as the release step. This is independent of the `:<commit-sha>` tag that
-`update-manifest` deploys, which always tracks the latest commit on `main`.
+### Releasing a new version
 
-`VERSION` is the **only** file you need to edit for a release. It's tempting
-to think the image tags in [`base/deployment.yaml`](base/deployment.yaml) and
-[`overlays/dev/kustomization.yaml`](overlays/dev/kustomization.yaml) also need
-a manual bump, but they don't:
+Every merge to `main` already ships a `:<commit-sha>` image to `dev` via the
+pipeline above. Bumping `VERSION` is only needed when you want that build to
+also carry a stable, human-meaningful Docker Hub tag (e.g. `1.1`) instead of
+just the commit SHA.
 
-- `base/deployment.yaml`'s image tag is never deployed as-is — Kustomize's
-  `images` transformer in the overlay always overwrites it. It only needs to
-  keep the correct image *name*, not a correct tag.
-- `overlays/dev/kustomization.yaml`'s `newTag` is overwritten automatically by
-  `update-manifest` on every merge to `main`, using the commit SHA — not the
-  `VERSION` value. Any manual edit there gets clobbered on the next merge
-  anyway.
+1. Branch off `main` for the change, e.g. `release/1.1` (matching the version
+   you're about to ship makes the intent obvious in the branch list, though
+   the pipeline doesn't require this naming).
+2. Bump `VERSION` to match (e.g. `1.0` → `1.1`). Without this, the
+   `:<VERSION>` tag stays the same and just gets re-pushed pointing at the
+   new commit — the `:<commit-sha>` tag still changes correctly.
+3. Make the code change and commit both together.
+4. Open a PR from `release/1.1` against `main` so `test` gates it before
+   merge.
+5. Merge to `main`. CI runs `test` → `build-and-push` → `update-manifest`,
+   pushing the new image and bumping
+   [`overlays/dev/kustomization.yaml`](overlays/dev/kustomization.yaml)'s tag.
+6. ArgoCD picks up the change and syncs the `dev` Application automatically —
+   no manual `kubectl apply` needed.
+7. Verify the rollout in `dev` (`kubectl get pods`, confirm the image tag, hit
+   the app, or check ArgoCD's sync status) before trusting the release.
+
+`VERSION` and the code change are the only files you edit for a release.
+[`base/deployment.yaml`](base/deployment.yaml)'s image tag is never deployed
+as-is — Kustomize's `images` transformer in the overlay always overwrites it,
+so it only needs to keep the correct image *name*, not a correct tag.
+[`overlays/dev/kustomization.yaml`](overlays/dev/kustomization.yaml)'s
+`newTag` is overwritten automatically by `update-manifest` on every merge to
+`main`, using the commit SHA — not the `VERSION` value. Any manual edit there
+gets clobbered on the next merge anyway.
+
+There's no `prod` environment in this repo today (see
+[Deploying to prod](#deploying-to-prod) below) — if one is added, promoting
+to it should stay a separate, deliberate step, not something this pipeline
+does automatically.
 
 ### Required repository secrets
 
@@ -160,3 +178,46 @@ all overlays — and merge to `main`. **Per-environment changes** (namespace,
 replica overrides, etc. for `dev` specifically): edit
 [`overlays/dev/kustomization.yaml`](overlays/dev/kustomization.yaml) instead.
 Don't `kubectl apply` by hand either way, ArgoCD will just revert it.
+
+## Deploying to prod
+
+There's no `prod` environment in this repo yet, only `overlays/dev`. Setting
+one up is a one-time bootstrap; after that, promoting a build to prod is a
+repeatable, deliberate step, kept separate from the `main`-triggered CI
+pipeline above.
+
+### One-time setup
+
+1. Add `overlays/prod/kustomization.yaml`, modeled on
+   [`overlays/dev/kustomization.yaml`](overlays/dev/kustomization.yaml): same
+   base reference, but its own `namespace` (e.g. `prod`) and a pinned
+   starting `newTag`.
+2. Add a second ArgoCD Application (e.g.
+   `applications/argocd-app-prod.yaml`), a copy of
+   [`applications/argocd-app.yaml`](applications/argocd-app.yaml) with its
+   own `metadata.name` and `spec.source.path` pointed at `overlays/prod`
+   instead of `overlays/dev`.
+3. Register it once: `kubectl apply -f applications/argocd-app-prod.yaml`.
+4. Decide sync policy deliberately. Unlike `dev`, you likely don't want
+   prod's ArgoCD Application to auto-sync from every commit — consider
+   manual sync (omit `automated` from the sync policy), so a `dev`-only
+   change can't silently roll out to prod.
+
+### Promoting a build
+
+1. Confirm the image tag currently running in `dev` is the one you want in
+   prod (check `overlays/dev/kustomization.yaml`'s `newTag`, `kubectl get
+   pods -n dev`, or ArgoCD's UI).
+2. Open a PR that bumps `overlays/prod/kustomization.yaml`'s `newTag` to that
+   same tag. This is the only file that changes — `base/` stays shared, and
+   nothing in CI does this for you.
+3. Get the PR reviewed and merged to `main`.
+4. Sync prod: if the prod Application uses manual sync, trigger it from the
+   ArgoCD UI/CLI (`argocd app sync <prod-app-name>`); if automated, ArgoCD
+   picks it up on its own.
+5. Verify the rollout in prod the same way as dev: `kubectl get pods -n
+   prod`, confirm the image tag, hit the app, or check ArgoCD's sync status.
+
+The `:<VERSION>` and `:<commit-sha>` images built by CI are *candidates* —
+promoting one to prod is a manual, reviewed decision about *which* candidate
+is production-ready, not an automatic consequence of merging to `main`.
